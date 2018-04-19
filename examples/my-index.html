@@ -12,7 +12,63 @@
 		<script src="../build/three.js"></script>
 		<script src="js/controls/OrbitControls.js"></script>
 		<script>
+			
+			//generate points from A to B and return a catmullromcurve3
+			//progress through a vector, generate points around it. 
+			//randomize space between vectors later. 
+			function MakePath(pointA, pointB, numPoints)
+			{
+				var arr = []; 
+				var distance = pointA.distanceTo(pointB); 
+				var vector = new THREE.Vector3().subVectors(pointB, pointA); 				
+				var normalized = vector.normalize();		
+				var segLength = distance/numPoints; 										
+				arr.push(pointA); 				
+				for(var i = 1; i < numPoints; i++)
+				{																																													
+					//the normal vector to the current plane to select a point is newVec 
+					var newVec = new THREE.Vector3(normalized.x, normalized.y, normalized.z).multiplyScalar(i*segLength);
+					newVec.add(pointA);					
+					arr.push(newVec);													
+					//https://stackoverflow.com/questions/29350965/generate-a-random-point-in-a-specific-plane-in-c
+					var position = new THREE.Vector3(newVec.x, newVec.y, newVec.z);	
+					var geometry = new THREE.PlaneGeometry( 10, 10, 10 );
+					var quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normalized);														
+					var matrix = new THREE.Matrix4().compose(position,quaternion,new THREE.Vector3(1,1,1));					
+					geometry.applyMatrix(matrix);					
+					var mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.2, color: 0x000000, side: THREE.DoubleSide });
+					var plane = new THREE.Mesh(geometry, mat);	
+					scene.add(plane);
+				}								
+				arr.push(pointB); 										
+				var curve = new THREE.CatmullRomCurve3(arr);				
+				return curve; 				
+			}
 
+			function MakeLines(pointA, pointB, numPoints)
+			{
+				var arr = []; 
+				var distance = pointA.distanceTo(pointB); 
+				var vector = new THREE.Vector3().subVectors(pointB, pointA); 				
+				var normalized = vector.normalize();		
+				var segLength = distance/numPoints; 										
+				arr.push(pointA); 				
+				for(var i = 1; i < numPoints; i++)
+				{																				
+					//var nextPoint = new THREE.Vector3(vector.x, vector.y, vector.z);	
+					var newVec = new THREE.Vector3(normalized.x, normalized.y, normalized.z).multiplyScalar(i*segLength);
+					newVec.add(pointA);					
+					arr.push(newVec);															
+					//vector.add(normalized);								
+				}								
+				arr.push(pointB); 																
+				var pathGeo = new THREE.BufferGeometry().setFromPoints( arr );
+				var pathMat = new THREE.LineBasicMaterial( { color : 0xff0000 } );
+				var genCurveObj = new THREE.Line(pathGeo, pathMat);
+				return genCurveObj; 				
+			}
+
+			//each missile makes X many bezier paths from point A to B and straightens out towards the end? 
 			function GetLines(geometry, lineColor)
 			{
 				var edges = new THREE.EdgesGeometry(geometry); 
@@ -35,8 +91,8 @@
 			var cube = new THREE.Mesh(geometry, material );
 
 
-			var coneGeo = new THREE.ConeGeometry(1, 3);						
-			var coneMat = new THREE.MeshBasicMaterial( {color: 0xffff00} );	
+			var coneGeo = new THREE.ConeGeometry(1, 3);									
+			var coneMat = new THREE.MeshBasicMaterial( {color: 0xffff00} );				
 
 			var coneLines = GetLines(coneGeo, 0x000000);
 			var cone = new THREE.Mesh(coneGeo, coneMat);					
@@ -50,9 +106,17 @@
 
 			var points = curve.getPoints( 50 );
 			var curveGeometry = new THREE.BufferGeometry().setFromPoints( points );
-
+			curveGeometry.dynamic = true;
+			curveGeometry.verticesNeedUpdate = true;
+			curveGeometry.attributes.position.needsUpdate = true; 
 			var curveMaterial = new THREE.LineBasicMaterial( { color : 0xff0000 } );
 
+			var generatedPath = MakePath(new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 10, 0, 7 ), 5);
+			var points = generatedPath.getPoints(100); 
+			var pathGeo = new THREE.BufferGeometry().setFromPoints( points );
+			var pathMat = new THREE.LineBasicMaterial( { color : 0xff0000 } );
+			var genCurveObj = new THREE.Line(pathGeo, pathMat);
+			
 			// Create the final object to add to the scene
 			var curveObject = new THREE.Line( curveGeometry, curveMaterial );
 			curveObject.verticesNeedUpdate = true;
@@ -62,9 +126,10 @@
 			scene.add(cube);
 			scene.add(cone); 
 			scene.add(coneLines);			
-			scene.add(curveObject);
-			
-			camera.position.z = 10;
+			//scene.add(curveObject);
+			//scene.add(genCurveObj);
+			scene.add(MakeLines(new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 10, 0, 7 ), 5));
+			camera.position.z = 20;
 			var currentTime = 0; 
 			var lastTime = (new Date()).getTime(); 
 			var fps = 60; 
@@ -81,17 +146,19 @@
 				if(accrue > flightTime)
 				{
 					accrue = 0;
-					curve.v0 = curve.v1; 
-					curve.v1 = curve.v2; 
-					curve.v2 = curve.v3; 
-					curve.v3 = new THREE.Vector3().addVectors(curve.v3, new THREE.Vector3(3, 5, 3));
+					// var tmp = curve.v0;
+					// var tmp2 = curve.v1; 
+					// curve.v0 = curve.v3; 
+					// curve.v1 = curve.v2; 
+					// curve.v2 = tmp2; 
+					// curve.v3 = tmp;					
 				}					
 				var param = accrue/flightTime; 
-				var newLoc = curve.getPoint(param);								 
+				var newLoc = generatedPath.getPoint(param);								 
 				
 				coneLines.position.set(newLoc.x, newLoc.y, newLoc.z);
 				cone.position.set(newLoc.x, newLoc.y, newLoc.z);								
-				var tangent = curve.getTangent(param).normalize(); 
+				var tangent = generatedPath.getTangent(param).normalize(); 
 				var axis = new THREE.Vector3().crossVectors(up, tangent).normalize(); 
 
 				radians = Math.acos(up.dot(tangent)); 
