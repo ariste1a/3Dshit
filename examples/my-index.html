@@ -11,6 +11,7 @@
 	<body>
 		<script src="../build/three.js"></script>
 		<script src="js/controls/OrbitControls.js"></script>
+		<script src="js/GPUParticleSystem.js"></script>
 		<script>
 			
 			function randomIntFromInterval(min,max)
@@ -95,6 +96,7 @@
 			}
 
 			//should separate this out somehow
+			var arrPaths = []; 
 			function GeneratePaths(num, dest, radius)
 			{				
 				var arr = []; 
@@ -108,9 +110,10 @@
 					arr.push(generatedPath);					
 					var points = generatedPath.getPoints(100); 
 					var pathGeo = new THREE.BufferGeometry().setFromPoints( points );
-					var pathMat = new THREE.LineBasicMaterial( { opacity: 0.3, transparent: true, color : 0xff0000 } );
+					var pathMat = new THREE.LineBasicMaterial( { opacity: 0.2, transparent: true, color : 0xff0000 } );
 					var genCurveObj = new THREE.Line(pathGeo, pathMat);
-					scene.add(genCurveObj);
+					arrPaths.push(genCurveObj);
+					//scene.add(genCurveObj);
 				}				
 				return arr; 
 			}
@@ -134,7 +137,7 @@
 				var arr = []; 
 				for(var i = 0; i < missiles.length;i++)
 				{
-					var outline = GetLines(coneGeo, 0x000000); 
+					var outline = GetLines(missiles[i].geometry, 0x000000); 
 					arr.push(outline);
 					scene.add(outline);
 				}				
@@ -153,63 +156,63 @@
 					radians = Math.acos(up.dot(tangent)); 					
 					missiles[i].quaternion.setFromAxisAngle(axis, radians);										
 				}
-			}
+			}			
 
 			var scene = new THREE.Scene();
 			var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );			
 			var renderer = new THREE.WebGLRenderer({antialias:true});
 			renderer.setSize( window.innerWidth, window.innerHeight );
-			renderer.setClearColor(0xFFFFFF, 1);
+			renderer.setClearColor(0x000000, 1);
 			document.body.appendChild( renderer.domElement );
-			var controls = new THREE.OrbitControls(camera, renderer.domElement);					
-
-			var coneGeo = new THREE.ConeGeometry(1, 3);									
-			var coneMat = new THREE.MeshBasicMaterial( {color: 0xffff00} );				
-
-			var coneLines = GetLines(coneGeo, 0x000000);
-			var cone = new THREE.Mesh(coneGeo, coneMat);					
-			
-			var curve = new THREE.CubicBezierCurve3(
-				new THREE.Vector3( -10, 0, 0 ),
-				new THREE.Vector3( -5, 15, 3 ),
-				new THREE.Vector3( 20, 15, 0 ),
-				new THREE.Vector3( 10, 0, 7 )
-			);
-
-			var points = curve.getPoints( 50 );
-			var curveGeometry = new THREE.BufferGeometry().setFromPoints( points );
-			curveGeometry.dynamic = true;
-			curveGeometry.verticesNeedUpdate = true;
-			curveGeometry.attributes.position.needsUpdate = true; 
-			var curveMaterial = new THREE.LineBasicMaterial( { color : 0xff0000 } );
-
-			var generatedPath = MakePath(new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 10, 0, 7 ), 5);
-			var points = generatedPath.getPoints(100); 
-			var pathGeo = new THREE.BufferGeometry().setFromPoints( points );
-			var pathMat = new THREE.LineBasicMaterial( { color : 0xff0000 } );
-			var genCurveObj = new THREE.Line(pathGeo, pathMat);
-			
-			// Create the final object to add to the scene
-			var curveObject = new THREE.Line( curveGeometry, curveMaterial );
-			curveObject.verticesNeedUpdate = true;			
-									
-			scene.add(cone); 
-			scene.add(coneLines);			
-			//scene.add(curveObject);
-			scene.add(genCurveObj);
-			scene.add(MakeLines(new THREE.Vector3( -10, 0, 0 ), new THREE.Vector3( 10, 0, 7 ), 5));
-			camera.position.z = 20;
+			var controls = new THREE.OrbitControls(camera, renderer.domElement);															
+																					
+			camera.position.z = 60;
 			var currentTime = 0; 
 			var lastTime = (new Date()).getTime(); 
 			var fps = 60; 
 			var interval = 1000/fps; 
-			var accrue = 0; 			
-			//var oldVec = cone.up.normalize(); 
+			var accrue = 0; 						
 			var flightTime = 2; 			
-			var up = new THREE.Vector3( 0, 1, 0 );
-			var paths = GeneratePaths(10, new THREE.Vector3( 10, 0, 7 ), 20);
-			var missiles = MakeMissiles(10);
+			var up = new THREE.Vector3( 0, 1, 0 );			
+
+			var numMissiles = 50;
+			var spawnRadius = 40;
+			var paths = GeneratePaths(numMissiles, new THREE.Vector3( 10, 0, 7 ), 20);
+			var missiles = MakeMissiles(numMissiles);
 			var outlines = MakeMissileOutlines(missiles);
+			
+			var particleArr = []; 
+			var particleOptions = []; 
+			missiles.forEach(function(elem){
+				var particleSystem = new THREE.GPUParticleSystem( {
+					maxParticles: 3000
+				});
+				scene.add( particleSystem );
+
+				var options = {
+					position: new THREE.Vector3(),
+					positionRandomness: .3,
+					velocity: new THREE.Vector3(),
+					velocityRandomness: .5,
+					color: 0xaa88ff,
+					colorRandomness: .2,
+					turbulence: .5,
+					lifetime: 2,
+					size: 5,
+					sizeRandomness: 1
+				};
+				
+				particleArr.push(particleSystem);
+				particleOptions.push(options);
+			});					
+
+			spawnerOptions = {
+					spawnRate: 15000,
+					horizontalSpeed: 1.5,
+					verticalSpeed: 1.33,
+					timeScale: 1
+			};
+
 			function animate() {
 				requestAnimationFrame( animate );				
 				currentTime = (new Date()).getTime();
@@ -217,22 +220,30 @@
 				accrue += delta; 
 				if(accrue > flightTime)
 				{
-					accrue = 0;									
-				}					
-				var param = accrue/flightTime; 
+					accrue = 0;			
+					arrPaths.forEach(function(ele){
+						scene.remove(ele);
+					});
 
-				var newLoc = generatedPath.getPoint(param);								 				
-				coneLines.position.set(newLoc.x, newLoc.y, newLoc.z);
-				cone.position.set(newLoc.x, newLoc.y, newLoc.z);								
-				var tangent = generatedPath.getTangent(param).normalize(); 
-				var axis = new THREE.Vector3().crossVectors(up, tangent).normalize(); 
-				radians = Math.acos(up.dot(tangent)); 
-				coneLines.quaternion.setFromAxisAngle(axis, radians);				
-				cone.quaternion.setFromAxisAngle(axis, radians);					
+					var randX = randomIntFromInterval(-spawnRadius, spawnRadius); 
+					var randY = randomIntFromInterval(-spawnRadius, spawnRadius); 
+					var randZ = randomIntFromInterval(0, -40); 
+					paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), 20);				
+				}
+				var param = accrue/flightTime;						
 				
 				UpdateMissilePositions(missiles, paths, param)
 				UpdateMissilePositions(outlines, paths, param);
-				renderer.render( scene, camera );				
+				
+				for(var i = 0; i < missiles.length; i++)
+				{
+					for ( var x = 0; x < spawnerOptions.spawnRate * delta; x++ ) {					
+						particleOptions[i].position = missiles[i].position;
+						particleArr[i].spawnParticle( particleOptions[i] );
+					}
+					particleArr[i].update( accrue );
+				}									
+				renderer.render( scene, camera );							
 				lastTime = currentTime; 
 			};
 			animate();
