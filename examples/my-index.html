@@ -34,17 +34,8 @@
 				{																																													
 					//the normal vector to the current plane to select a point is newVec 
 					var newVec = new THREE.Vector3(normalized.x, normalized.y, normalized.z).multiplyScalar(i*segLength);
-					newVec.add(pointA);					
-					//arr.push(newVec);													
-					//https://stackoverflow.com/questions/29350965/generate-a-random-point-in-a-specific-plane-in-c
+					newVec.add(pointA);										
 					var position = new THREE.Vector3(newVec.x, newVec.y, newVec.z);	
-					// var geometry = new THREE.PlaneGeometry( 10, 10, 10 );
-					// var quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normalized);														
-					// var matrix = new THREE.Matrix4().compose(position,quaternion,new THREE.Vector3(1,1,1));					
-					// geometry.applyMatrix(matrix);					
-					// var mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.2, color: 0x000000, side: THREE.DoubleSide });
-					// var plane = new THREE.Mesh(geometry, mat);	
-					// scene.add(plane);
 
 					var realPlane = new THREE.Plane();
 					var quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1,0,0), normalized);														
@@ -97,7 +88,7 @@
 
 			//should separate this out somehow
 			var arrPaths = []; 
-			function GeneratePaths(num, dest, radius)
+			function  GeneratePaths(num, dest, radius)
 			{				
 				var arr = []; 
 				for(var i = 0; i < num; i++)
@@ -113,7 +104,28 @@
 					var pathMat = new THREE.LineBasicMaterial( { opacity: 0.2, transparent: true, color : 0xff0000 } );
 					var genCurveObj = new THREE.Line(pathGeo, pathMat);
 					arrPaths.push(genCurveObj);
-					//scene.add(genCurveObj);
+					scene.add(genCurveObj);
+				}				
+				return arr; 
+			}
+
+			function  GeneratePaths(num, dest, starting, radius)
+			{				
+				var arr = []; 
+				for(var i = 0; i < num; i++)
+				{
+					var x = starting.x;
+					var y = starting.y;
+					var z = starting.z;
+
+					var generatedPath = MakePath(new THREE.Vector3( x,y,z ), dest, 5);
+					arr.push(generatedPath);					
+					var points = generatedPath.getPoints(100); 
+					var pathGeo = new THREE.BufferGeometry().setFromPoints( points );
+					var pathMat = new THREE.LineBasicMaterial( { opacity: 0.2, transparent: true, color : 0xff0000 } );
+					var genCurveObj = new THREE.Line(pathGeo, pathMat);
+					arrPaths.push(genCurveObj);
+					scene.add(genCurveObj);
 				}				
 				return arr; 
 			}
@@ -157,7 +169,9 @@
 					missiles[i].quaternion.setFromAxisAngle(axis, radians);										
 				}
 			}			
+			
 
+			//turn this into an init func
 			var scene = new THREE.Scene();
 			var camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );			
 			var renderer = new THREE.WebGLRenderer({antialias:true});
@@ -177,7 +191,8 @@
 
 			var numMissiles = 50;
 			var spawnRadius = 40;
-			var paths = GeneratePaths(numMissiles, new THREE.Vector3( 10, 0, 7 ), 20);
+			var startPoint = new THREE.Vector3( 10, 0, 7 ); 
+			var paths = GeneratePaths(numMissiles, startPoint, 20);
 			var missiles = MakeMissiles(numMissiles);
 			var outlines = MakeMissileOutlines(missiles);
 			
@@ -212,7 +227,8 @@
 					verticalSpeed: 1.33,
 					timeScale: 1
 			};
-
+			
+			var oldStart = startPoint; 
 			function animate() {
 				requestAnimationFrame( animate );				
 				currentTime = (new Date()).getTime();
@@ -228,7 +244,11 @@
 					var randX = randomIntFromInterval(-spawnRadius, spawnRadius); 
 					var randY = randomIntFromInterval(-spawnRadius, spawnRadius); 
 					var randZ = randomIntFromInterval(0, -40); 
-					paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), 20);				
+					//paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), 20);	
+					paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), oldStart, 20); 
+					oldStart = new THREE.Vector3( randX, randY, randZ); 
+					//so now we need to continuously add points and discard. 
+					//and then eventually do it half way through the flight path instead. 
 				}
 				var param = accrue/flightTime;						
 				
