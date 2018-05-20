@@ -12,6 +12,7 @@
 		<script src="../build/three.js"></script>
 		<script src="js/controls/OrbitControls.js"></script>
 		<script src="js/GPUParticleSystem.js"></script>
+		<script src="./js/libs/dat.gui.min.js"></script>
 		<script>
 			//modularize the code more
 			//setup UI for parameters
@@ -67,8 +68,7 @@
 					var rand1 = randomIntFromInterval(-segLength, segLength);
 					var rand2 = randomIntFromInterval(-segLength, segLength);
 					var rand3 = randomIntFromInterval(-segLength, segLength);
-					realPlane.projectPoint(new THREE.Vector3(rand1, rand2, rand3), randomPoint);					
-					//scene.add(helper); 
+					realPlane.projectPoint(new THREE.Vector3(rand1, rand2, rand3), randomPoint);										
 
 					arr.push(randomPoint);
 				}								
@@ -189,7 +189,7 @@
 					missiles[i].quaternion.setFromAxisAngle(axis, radians);										
 				}
 			}			
-			
+					
 
 			//turn this into an init func
 			var scene = new THREE.Scene();
@@ -209,13 +209,17 @@
 			var flightTime = 2; 			
 			var up = new THREE.Vector3( 0, 1, 0 );			
 
-			var numMissiles = 50;
-			var spawnRadius = 40;
+
+			var Settings =
+			{
+				numMissiles: 50, 
+				spawnRadius: 40				
+			};
 			var startPoint = new THREE.Vector3( 10, 0, 7 ); 
-			var paths = GeneratePaths(numMissiles, startPoint, 20);
-			var missiles = MakeMissiles(numMissiles);
-			var outlines = MakeMissileOutlines(missiles);
-			
+			var paths = GeneratePaths(Settings.numMissiles, startPoint, 20);
+			var missiles = MakeMissiles(Settings.numMissiles);
+			var outlines = MakeMissileOutlines(missiles);					
+
 			var particleArr = []; 
 			var particleOptions = []; 
 			missiles.forEach(function(elem){
@@ -248,6 +252,14 @@
 					timeScale: 1
 			};
 			
+
+			var gui = new dat.GUI( { width: 350 });
+			gui.add( Settings, "numMissiles", 1, 100, 1);
+			gui.add( Settings, "spawnRadius", 1, 40 );			
+
+			gui.add( spawnerOptions, "spawnRate", 10, 30000 );
+			gui.add( spawnerOptions, "timeScale", -1, 1 );
+
 			var oldStart = startPoint; 
 			function animate() {
 				requestAnimationFrame( animate );				
@@ -261,11 +273,51 @@
 						scene.remove(ele);
 					});
 
-					var randX = randomIntFromInterval(-spawnRadius, spawnRadius); 
-					var randY = randomIntFromInterval(-spawnRadius, spawnRadius); 
+					var randX = randomIntFromInterval(-Settings.spawnRadius, Settings.spawnRadius); 
+					var randY = randomIntFromInterval(-Settings.spawnRadius, Settings.spawnRadius); 
 					var randZ = randomIntFromInterval(0, -40); 
-					//paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), 20);	
-					paths = GeneratePaths(numMissiles, new THREE.Vector3( randX, randY, randZ ), oldStart, 20); 
+					
+					if(missiles.length != Settings.numMissiles)
+					{
+						while(scene.children.length > 0){ 
+							scene.remove(scene.children[0]); 
+						}
+						missiles = MakeMissiles(Settings.numMissiles);
+						outlines = MakeMissileOutlines(missiles);	
+
+						particleArr = []; 
+						particleOptions = []; 
+						missiles.forEach(function(elem){
+							var particleSystem = new THREE.GPUParticleSystem( {
+								maxParticles: 3000
+							});
+							scene.add( particleSystem );
+
+							var options = {
+								position: new THREE.Vector3(),
+								positionRandomness: .3,
+								velocity: new THREE.Vector3(),
+								velocityRandomness: .5,
+								color: 0xaa88ff,
+								colorRandomness: .2,
+								turbulence: .5,
+								lifetime: 2,
+								size: 5,
+								sizeRandomness: 1
+							};
+							
+							particleArr.push(particleSystem);
+							particleOptions.push(options);
+						});					
+
+						spawnerOptions = {
+								spawnRate: 15000,
+								horizontalSpeed: 1.5,
+								verticalSpeed: 1.33,
+								timeScale: 1
+						};
+					}					
+					paths = GeneratePaths(Settings.numMissiles, new THREE.Vector3( randX, randY, randZ ), oldStart, 20); 
 					oldStart = new THREE.Vector3( randX, randY, randZ); 
 					//so now we need to continuously add points and discard. 
 					//and then eventually do it half way through the flight path instead. 
